@@ -156,7 +156,7 @@ Với cấu hình 2048 qubit, tỷ lệ lấy mẫu 20%, ngưỡng QBER 11% và 
 
 - 0% Eve: cả 10 phiên đều CONTINUE, QBER mẫu bằng 0%.
 - 40% Eve: 9/10 phiên CONTINUE và 1/10 phiên ABORT.
-- 50% Eve: 8/10 phiên ABORT.
+- 50% Eve: 7/10 phiên ABORT.
 - Từ 60% đến 100% Eve: cả 10 phiên ở mỗi mức đều ABORT.
 - 100% Eve: QBER mẫu trung bình xấp xỉ 25.11%, gần giá trị kỳ vọng lý thuyết 25%.
 
