@@ -90,9 +90,9 @@ def generate_qber_chart(rows, output_path, threshold=QBER_THRESHOLD):
         xlabel="Eve attack probability (%)",
         ylabel="QBER (%)",
         xticks=attack_rates,
-        xlim=(-2, 102),
-        ylim(bottom=0)
+        xlim=(-2, 102)
     )
+    ax.set_ylim(bottom=0)
     ax.grid(True, alpha=0.3)
     ax.legend()
     fig.tight_layout()
