@@ -2,8 +2,6 @@ import numpy as np
 from qiskit import QuantumCircuit, transpile
 from qiskit_aer import AerSimulator
 
-from experiments import results
-
 
 def generate_eve_bases(num_bits, seed=None):
     rng = np.random.default_rng(seed)
@@ -24,8 +22,7 @@ def intercept_resend(circuits, attack_probability=1.0, seed=None):
     attack_flags = rng.random(num_bits) < attack_probability
 
     attacked_indices = np.flatnonzero(attack_flags)
-
-    results = {}
+    measured_results = {}
 
     if len(attacked_indices) > 0:
         measurement_circuits = []
@@ -53,7 +50,9 @@ def intercept_resend(circuits, attack_probability=1.0, seed=None):
 
         for position, index in enumerate(attacked_indices):
             measurement = result.get_memory(position)[0]
-            results[index] = int(measurement.replace(" ", "")[-1])
+            measured_results[index] = int(
+                measurement.replace(" ", "")[-1]
+            )
 
     output_circuits = []
 
@@ -62,7 +61,7 @@ def intercept_resend(circuits, attack_probability=1.0, seed=None):
             output_circuits.append(circuit.copy())
             continue
 
-        measured_bit = results[index]
+        measured_bit = measured_results[index]
         new_circuit = QuantumCircuit(1, 1)
 
         if measured_bit == 1:
