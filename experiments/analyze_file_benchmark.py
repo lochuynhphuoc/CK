@@ -110,8 +110,8 @@ def validate_data(df):
         raise ValueError("Trial numbers must be positive integers.")
     if (df["file_size_bytes"] <= 0).any():
         raise ValueError("File sizes must be positive.")
-    if set(df["status"]) - {"SUCCESS"}:
-        raise ValueError("Benchmark contains non-SUCCESS records.")
+    if set(df["status"]) - {"SUCCESS", "ABORT", "ERROR"}:
+        raise ValueError("Benchmark contains an unknown status.")
     if actual_pairs != expected_pairs:
         raise ValueError(
             "Benchmark must contain exactly the configured 7 file types × 5 sizes."
@@ -130,11 +130,17 @@ def validate_data(df):
             f"{EXPECTED_TRIALS} unique trials."
         )
 
-    if not df["sha256_verified"].all():
-        raise ValueError("At least one benchmark record failed SHA-256 verification.")
+    df["performance_eligible"] = (
+        df["status"].eq("SUCCESS") & df["sha256_verified"].eq(True)
+    )
+    print(
+        "Performance-eligible records (SUCCESS + SHA-256 verified): "
+        f"{int(df['performance_eligible'].sum())}/{len(df)}"
+    )
 
 
 def build_summary(df, output_dir):
+    performance_df = df[df["performance_eligible"]].copy()
     metric_aggregations = {}
     for metric in NUMERIC_METRICS:
         metric_aggregations[f"{metric}_mean"] = (metric, "mean")
@@ -143,7 +149,7 @@ def build_summary(df, output_dir):
         metric_aggregations[f"{metric}_max"] = (metric, "max")
 
     by_type_size = (
-        df.groupby(["file_type", "size_label"], observed=True)
+        performance_df.groupby(["file_type", "size_label"], observed=True)
         .agg(n=("trial", "count"), **metric_aggregations)
         .reset_index()
     )
@@ -153,6 +159,15 @@ def build_summary(df, output_dir):
     by_type_size["size_label"] = pd.Categorical(
         by_type_size["size_label"], SIZE_ORDER, ordered=True
     )
+    complete_groups = pd.MultiIndex.from_product(
+        [FILE_TYPE_ORDER, SIZE_ORDER],
+        names=["file_type", "size_label"]
+    )
+    by_type_size = (
+        by_type_size.set_index(["file_type", "size_label"])
+        .reindex(complete_groups)
+        .reset_index()
+    )
     by_type_size = by_type_size.sort_values(["file_type", "size_label"])
     by_type_size.to_csv(
         output_dir / "benchmark_summary_by_type_size.csv",
@@ -160,7 +175,7 @@ def build_summary(df, output_dir):
     )
 
     by_size = (
-        df.groupby("size_label", observed=True)
+        performance_df.groupby("size_label", observed=True)
         .agg(
             n=("trial", "count"),
             encryption_mean=("encryption_time_seconds", "mean"),
@@ -176,6 +191,12 @@ def build_summary(df, output_dir):
             qber_mean=("qber_percent", "mean"),
             qber_sd=("qber_percent", "std")
         )
+        .reset_index()
+    )
+    by_size = (
+        by_size.set_index("size_label")
+        .reindex(SIZE_ORDER)
+        .rename_axis("size_label")
         .reset_index()
     )
     by_size["size_label"] = pd.Categorical(
@@ -205,8 +226,15 @@ def build_summary(df, output_dir):
         "error_count": int((df["status"] == "ERROR").sum()),
         "sha256_verified_count": int(df["sha256_verified"].eq(True).sum()),
         "sha256_failed_count": int(df["sha256_verified"].eq(False).sum()),
-        "mean_qber_percent": float(df["qber_percent"].mean()),
-        "mean_total_pipeline_seconds": float(df["total_time_seconds"].mean())
+        "performance_eligible_count": int(df["performance_eligible"].sum()),
+        "mean_qber_percent": (
+            float(df.loc[df["performance_eligible"], "qber_percent"].mean())
+            if df["performance_eligible"].any() else None
+        ),
+        "mean_total_pipeline_seconds": (
+            float(df.loc[df["performance_eligible"], "total_time_seconds"].mean())
+            if df["performance_eligible"].any() else None
+        )
     }])
     quality.to_csv(
         output_dir / "benchmark_quality_check.csv",
@@ -216,7 +244,7 @@ def build_summary(df, output_dir):
 
 
 def save_charts(df, by_size, by_type_size, output_dir):
-    sizes = by_size["size_label"].astype(str).tolist()
+    sizes = SIZE_ORDER
     x = np.arange(len(sizes))
 
     fig, ax = plt.subplots(figsize=(9, 5.5))

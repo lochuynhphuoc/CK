@@ -5,7 +5,8 @@ from experiments.analyze_file_benchmark import (
     EXPECTED_TRIALS,
     FILE_TYPE_ORDER,
     SIZE_ORDER,
-    validate_data
+    validate_data,
+    build_summary
 )
 
 
@@ -33,7 +34,9 @@ def make_valid_benchmark():
 
 
 def test_benchmark_validation_accepts_complete_ten_trial_dataset():
-    validate_data(make_valid_benchmark())
+    df = make_valid_benchmark()
+    validate_data(df)
+    assert df["performance_eligible"].all()
 
 
 def test_benchmark_validation_rejects_missing_trial():
@@ -42,15 +45,39 @@ def test_benchmark_validation_rejects_missing_trial():
         validate_data(df)
 
 
-def test_benchmark_validation_rejects_non_success_or_failed_integrity():
-    df = make_valid_benchmark()
-    df.loc[0, "sha256_verified"] = False
-    with pytest.raises(ValueError, match="SHA-256"):
-        validate_data(df)
-
-
 def test_benchmark_validation_rejects_non_finite_metrics():
     df = make_valid_benchmark()
     df.loc[0, "total_time_seconds"] = float("inf")
     with pytest.raises(ValueError, match="finite"):
         validate_data(df)
+
+
+def test_mixed_status_and_integrity_rows_are_preserved_but_excluded_from_performance(tmp_path):
+    df = make_valid_benchmark()
+    df.loc[0, "status"] = "ABORT"
+    df.loc[1, "status"] = "ERROR"
+    df.loc[2, "sha256_verified"] = False
+
+    validate_data(df)
+    assert len(df) == 350
+    assert int(df["performance_eligible"].sum()) == 347
+
+    by_size, _ = build_summary(df, tmp_path)
+    one_kb = by_size[by_size["size_label"].astype(str) == "1KB"].iloc[0]
+    assert one_kb["n"] == 67
+    assert one_kb["total_mean"] == pytest.approx(0.1)
+
+
+def test_group_without_valid_performance_records_does_not_get_zero_timings(tmp_path):
+    df = make_valid_benchmark()
+    mask = (df["file_type"] == ".txt") & (df["size_label"] == "1KB")
+    df.loc[mask, "status"] = "ABORT"
+
+    validate_data(df)
+    _, by_type_size = build_summary(df, tmp_path)
+    row = by_type_size[
+        (by_type_size["file_type"].astype(str) == ".txt")
+        & (by_type_size["size_label"].astype(str) == "1KB")
+    ].iloc[0]
+    assert row["n"] == 0
+    assert pd.isna(row["total_time_seconds_mean"])
