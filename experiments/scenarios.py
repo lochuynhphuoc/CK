@@ -26,24 +26,18 @@ def run_trial(
 ):
     if not 0.0 <= attack_probability <= 1.0:
         raise ValueError("Attack probability must be between 0 and 1.")
-
     if trial < 1:
         raise ValueError("Trial number must be at least 1.")
-
     if num_bits < 2:
         raise ValueError("Number of transmitted qubits must be at least 2.")
-
     if not 0.0 < sample_rate <= 1.0:
         raise ValueError("Sample rate must be greater than 0 and at most 1.")
-
     if not 0.0 <= threshold <= 1.0:
         raise ValueError("QBER threshold must be between 0 and 1.")
 
     seed = base_seed + trial * 1000
-
     alice_bits = generate_bits(num_bits, seed=seed)
     alice_bases = generate_bases(num_bits, seed=seed + 1)
-
     circuits = prepare_qubits(alice_bits, alice_bases)
     received_circuits = transmit(circuits)
 
@@ -67,6 +61,34 @@ def run_trial(
         bob_bases
     )
 
+    attacked_count = int(sum(attack_flags))
+    sifted_errors = sum(
+        int(alice_bit) != int(bob_bit)
+        for alice_bit, bob_bit in zip(alice_key, bob_key)
+    )
+    attacked_rate = attacked_count / num_bits
+
+    if not alice_key:
+        return {
+            "attack_probability": attack_probability,
+            "trial": trial,
+            "seed": seed,
+            "num_bits": num_bits,
+            "attacked_qubits": attacked_count,
+            "actual_attack_rate": attacked_rate,
+            "matching_basis": len(matching_indices),
+            "sifted_key_length": 0,
+            "sample_size": 0,
+            "sample_errors": 0,
+            "sample_qber": None,
+            "actual_sifted_errors": 0,
+            "actual_sifted_qber": None,
+            "threshold": threshold,
+            "accepted": False,
+            "session_status": "ABORT",
+            "reason": "No matching measurement bases; sifted key is empty."
+        }
+
     qber_result = estimate_qber(
         alice_key,
         bob_key,
@@ -75,17 +97,7 @@ def run_trial(
         seed=seed + 5
     )
 
-    sifted_errors = sum(
-        int(alice_bit) != int(bob_bit)
-        for alice_bit, bob_bit in zip(alice_key, bob_key)
-    )
-
-    actual_sifted_qber = (
-        sifted_errors / len(alice_key)
-        if alice_key else 0.0
-    )
-
-    attacked_count = int(sum(attack_flags))
+    actual_sifted_qber = sifted_errors / len(alice_key)
 
     return {
         "attack_probability": attack_probability,
@@ -93,7 +105,7 @@ def run_trial(
         "seed": seed,
         "num_bits": num_bits,
         "attacked_qubits": attacked_count,
-        "actual_attack_rate": attacked_count / num_bits,
+        "actual_attack_rate": attacked_rate,
         "matching_basis": len(matching_indices),
         "sifted_key_length": len(alice_key),
         "sample_size": qber_result["sample_size"],
@@ -103,7 +115,8 @@ def run_trial(
         "actual_sifted_qber": actual_sifted_qber,
         "threshold": threshold,
         "accepted": qber_result["accepted"],
-        "session_status": "CONTINUE" if qber_result["accepted"] else "ABORT"
+        "session_status": "CONTINUE" if qber_result["accepted"] else "ABORT",
+        "reason": None if qber_result["accepted"] else "Sample QBER exceeds threshold."
     }
 
 
@@ -118,12 +131,9 @@ def run_experiments(
 ):
     if trials < 1:
         raise ValueError("Number of trials must be at least 1.")
-
     rates = tuple(float(rate) for rate in attack_rates)
-
     if not rates:
         raise ValueError("At least one attack rate must be provided.")
-
     if any(not 0.0 <= rate <= 1.0 for rate in rates):
         raise ValueError("Every attack rate must be between 0 and 1.")
 
@@ -135,7 +145,6 @@ def run_experiments(
             f"\nAttack probability: {attack_probability:.0%} "
             f"({rate_index + 1}/{len(rates)})"
         )
-
         for trial in range(1, trials + 1):
             result = run_trial(
                 attack_probability=attack_probability,
@@ -145,28 +154,22 @@ def run_experiments(
                 threshold=threshold,
                 base_seed=base_seed
             )
-
             rows.append(result)
-
             print(
                 f"  Trial {trial:02d}/{trials}: "
-                f"QBER={result['sample_qber']:.2%}, "
+                f"QBER={result['sample_qber'] if result['sample_qber'] is not None else 'N/A'}, "
                 f"attacked={result['actual_attack_rate']:.2%}, "
                 f"status={result['session_status']}"
             )
-
-        completed = len(rows)
-        print(f"Completed runs: {completed}/{total_runs}")
+        print(f"Completed runs: {len(rows)}/{total_runs}")
 
     raw_path, summary_path = save_experiment_results(
         rows,
         output_dir=Path(output_dir)
     )
-
     print("\nExperiment completed.")
     print(f"Raw results     : {raw_path}")
     print(f"Summary results : {summary_path}")
-
     return rows
 
 
@@ -174,14 +177,12 @@ def main():
     parser = argparse.ArgumentParser(
         description="Run automated BB84 Eve attack experiments."
     )
-
     parser.add_argument("--trials", type=int, default=DEFAULT_TRIALS)
     parser.add_argument("--num-bits", type=int, default=NUM_BITS)
     parser.add_argument("--sample-rate", type=float, default=QBER_SAMPLE_RATE)
     parser.add_argument("--threshold", type=float, default=QBER_THRESHOLD)
     parser.add_argument("--base-seed", type=int, default=DEFAULT_BASE_SEED)
     parser.add_argument("--output-dir", default="results")
-
     args = parser.parse_args()
 
     run_experiments(

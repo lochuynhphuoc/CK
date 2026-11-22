@@ -1,6 +1,21 @@
 import numpy as np
 
 
+def _validate_binary_key(key, name):
+    try:
+        values = np.asarray(key)
+    except (TypeError, ValueError) as exc:
+        raise ValueError(f"{name} must be a one-dimensional binary sequence.") from exc
+
+    if values.ndim != 1:
+        raise ValueError(f"{name} must be a one-dimensional binary sequence.")
+
+    if not np.all(np.isin(values, [0, 1])):
+        raise ValueError(f"{name} must contain only 0 and 1.")
+
+    return values.astype(np.uint8, copy=False)
+
+
 def estimate_qber(
     alice_key,
     bob_key,
@@ -8,7 +23,10 @@ def estimate_qber(
     threshold=0.11,
     seed=None
 ):
-    if len(alice_key) != len(bob_key):
+    alice = _validate_binary_key(alice_key, "Alice key")
+    bob = _validate_binary_key(bob_key, "Bob key")
+
+    if len(alice) != len(bob):
         raise ValueError("Alice and Bob keys must have the same length.")
 
     if not 0.0 < sample_rate <= 1.0:
@@ -17,7 +35,7 @@ def estimate_qber(
     if not 0.0 <= threshold <= 1.0:
         raise ValueError("Threshold must be between 0 and 1.")
 
-    key_length = len(alice_key)
+    key_length = len(alice)
 
     if key_length == 0:
         raise ValueError("Sifted keys must not be empty.")
@@ -32,30 +50,16 @@ def estimate_qber(
     )
 
     sample_index_set = set(sample_indices.tolist())
-
-    error_count = sum(
-        int(alice_key[index]) != int(bob_key[index])
-        for index in sample_indices
-    )
-
+    error_count = int(np.count_nonzero(alice[sample_indices] != bob[sample_indices]))
     qber = error_count / sample_size
 
     remaining_indices = [
-        index
-        for index in range(key_length)
+        index for index in range(key_length)
         if index not in sample_index_set
     ]
 
-    alice_remaining_key = [
-        int(alice_key[index])
-        for index in remaining_indices
-    ]
-
-    bob_remaining_key = [
-        int(bob_key[index])
-        for index in remaining_indices
-    ]
-
+    alice_remaining_key = alice[remaining_indices].tolist()
+    bob_remaining_key = bob[remaining_indices].tolist()
     accepted = qber <= threshold
 
     return {
