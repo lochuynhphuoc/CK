@@ -1,4 +1,5 @@
 import hashlib
+import os
 
 import pytest
 
@@ -98,9 +99,55 @@ def test_transfer_rejects_identical_encrypted_and_decrypted_paths(tmp_path):
         transfer_file(source, output, output)
 
 
-def test_decrypt_rejects_tampered_tag_without_writing_plaintext(
-    tmp_path
-):
+def test_transfer_rejects_hard_link_alias_of_source(tmp_path, monkeypatch):
+    source = tmp_path / "source.txt"
+    alias = tmp_path / "source-alias.txt"
+    source.write_bytes(b"preserve original bytes")
+    os.link(source, alias)
+
+    monkeypatch.setattr(
+        transfer_module,
+        "run_bb84_session",
+        lambda: pytest.fail("BB84 must not start for hard-link aliases.")
+    )
+
+    with pytest.raises(ValueError, match="must be different"):
+        transfer_file(source, alias, tmp_path / "restored.txt")
+
+    assert source.read_bytes() == b"preserve original bytes"
+    assert alias.read_bytes() == b"preserve original bytes"
+
+
+def test_encrypt_file_rejects_hard_link_output(tmp_path):
+    source = tmp_path / "source.txt"
+    alias = tmp_path / "alias.txt"
+    source.write_bytes(b"preserve plaintext")
+    os.link(source, alias)
+
+    with pytest.raises(ValueError, match="must be different"):
+        encrypt_file(source, alias, VALID_SESSION["key"])
+
+    assert source.read_bytes() == b"preserve plaintext"
+    assert alias.read_bytes() == b"preserve plaintext"
+
+
+def test_decrypt_file_rejects_hard_link_output(tmp_path):
+    source = tmp_path / "source.txt"
+    encrypted = tmp_path / "source.enc"
+    alias = tmp_path / "encrypted-alias.enc"
+    source.write_bytes(b"authenticated payload")
+    encrypt_file(source, encrypted, VALID_SESSION["key"])
+    os.link(encrypted, alias)
+    original_encrypted = encrypted.read_bytes()
+
+    with pytest.raises(ValueError, match="must be different"):
+        decrypt_file(encrypted, alias, VALID_SESSION["key"])
+
+    assert encrypted.read_bytes() == original_encrypted
+    assert alias.read_bytes() == original_encrypted
+
+
+def test_decrypt_rejects_tampered_tag_without_writing_plaintext(tmp_path):
     source = tmp_path / "source.txt"
     encrypted = tmp_path / "source.enc"
     decrypted = tmp_path / "restored.txt"

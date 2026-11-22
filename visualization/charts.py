@@ -41,17 +41,32 @@ def load_summary(path):
     return rows
 
 
-def generate_qber_chart(rows, output_path, threshold=QBER_THRESHOLD):
+def _threshold_from_rows(rows):
+    if "threshold" not in rows[0]:
+        return QBER_THRESHOLD
+
+    thresholds = {float(row["threshold"]) for row in rows}
+    if len(thresholds) != 1:
+        raise ValueError("Summary rows contain inconsistent QBER thresholds.")
+    return thresholds.pop()
+
+
+def generate_qber_chart(rows, output_path, threshold=None):
+    if threshold is None:
+        threshold = _threshold_from_rows(rows)
+
     attack_rates = [
         float(row["attack_probability"]) * 100
         for row in rows
     ]
     mean_qber = [
         float(row["mean_sample_qber"]) * 100
+        if row["mean_sample_qber"] not in (None, "") else float("nan")
         for row in rows
     ]
     std_qber = [
         float(row["std_sample_qber"]) * 100
+        if row["std_sample_qber"] not in (None, "") else 0.0
         for row in rows
     ]
     theoretical_qber = [
@@ -118,9 +133,9 @@ def generate_abort_chart(rows, output_path):
     fig, ax = plt.subplots(figsize=(10, 6))
 
     bars = ax.bar(
-        [f"{rate:.0f}%" for rate in attack_rates],
+        attack_rates,
         abort_rates,
-        width=0.65
+        width=6.5
     )
 
     ax.bar_label(
@@ -131,8 +146,10 @@ def generate_abort_chart(rows, output_path):
 
     ax.set(
         title="BB84: Session Abort Rate by Eve Attack Probability",
-        xlabel="Eve attack probability",
+        xlabel="Eve attack probability (%)",
         ylabel="Aborted sessions (%)",
+        xticks=attack_rates,
+        xlim=(-5, 105),
         ylim=(0, 110)
     )
     ax.grid(axis="y", alpha=0.3)

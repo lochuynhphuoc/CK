@@ -4,21 +4,44 @@ from collections import defaultdict
 from pathlib import Path
 
 
+def _mean_or_none(values):
+    return statistics.mean(values) if values else None
+
+
+def _stdev_or_none(values):
+    return statistics.stdev(values) if len(values) > 1 else (
+        0.0 if values else None
+    )
+
+
 def summarize_results(rows):
+    if not rows:
+        raise ValueError("Cannot summarize an empty result set.")
+
     grouped = defaultdict(list)
 
     for row in rows:
         grouped[float(row["attack_probability"])].append(row)
+
+    thresholds = {float(row["threshold"]) for row in rows}
+    if len(thresholds) != 1:
+        raise ValueError("All trials in one experiment must use the same QBER threshold.")
+    experiment_threshold = thresholds.pop()
 
     summaries = []
 
     for attack_probability in sorted(grouped):
         group = grouped[attack_probability]
 
-        qber_values = [float(row["sample_qber"]) for row in group]
+        qber_values = [
+            float(row["sample_qber"])
+            for row in group
+            if row["sample_qber"] is not None
+        ]
         actual_qber_values = [
             float(row["actual_sifted_qber"])
             for row in group
+            if row["actual_sifted_qber"] is not None
         ]
 
         accepted_count = sum(bool(row["accepted"]) for row in group)
@@ -26,18 +49,16 @@ def summarize_results(rows):
 
         summaries.append({
             "attack_probability": attack_probability,
+            "threshold": experiment_threshold,
             "trials": len(group),
             "mean_actual_attack_rate": statistics.mean(
                 float(row["actual_attack_rate"]) for row in group
             ),
-            "mean_sample_qber": statistics.mean(qber_values),
-            "std_sample_qber": (
-                statistics.stdev(qber_values)
-                if len(qber_values) > 1 else 0.0
-            ),
-            "mean_actual_sifted_qber": statistics.mean(
-                actual_qber_values
-            ),
+            "mean_sample_qber": _mean_or_none(qber_values),
+            "std_sample_qber": _stdev_or_none(qber_values),
+            "sample_qber_valid_trials": len(qber_values),
+            "mean_actual_sifted_qber": _mean_or_none(actual_qber_values),
+            "actual_qber_valid_trials": len(actual_qber_values),
             "accepted_sessions": accepted_count,
             "aborted_sessions": aborted_count,
             "abort_rate": aborted_count / len(group),

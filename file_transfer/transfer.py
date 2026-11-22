@@ -5,21 +5,37 @@ from encryption.file_encryption import encrypt_file, decrypt_file
 from file_transfer.integrity import verify_file_integrity
 
 
+def _paths_refer_to_same_file(first, second):
+    first = Path(first)
+    second = Path(second)
+
+    if first.resolve() == second.resolve():
+        return True
+
+    if first.exists() and second.exists():
+        try:
+            return first.samefile(second)
+        except OSError:
+            return False
+
+    return False
+
+
 def _validate_transfer_paths(source_path, encrypted_path, decrypted_path):
     paths = {
-        "source": Path(source_path).resolve(),
-        "encrypted": Path(encrypted_path).resolve(),
-        "decrypted": Path(decrypted_path).resolve()
+        "source": Path(source_path),
+        "encrypted": Path(encrypted_path),
+        "decrypted": Path(decrypted_path)
     }
 
-    if len(set(paths.values())) != len(paths):
-        duplicates = []
-        names = list(paths)
-        for index, first in enumerate(names):
-            for second in names[index + 1:]:
-                if paths[first] == paths[second]:
-                    duplicates.append(f"{first} and {second}")
+    duplicates = []
+    names = list(paths)
+    for index, first in enumerate(names):
+        for second in names[index + 1:]:
+            if _paths_refer_to_same_file(paths[first], paths[second]):
+                duplicates.append(f"{first} and {second}")
 
+    if duplicates:
         raise ValueError(
             "Source, encrypted, and decrypted paths must be different: "
             + ", ".join(duplicates)

@@ -13,6 +13,22 @@ FILE_MAGIC = b"BB84GCM1"
 HEADER_LENGTH = len(FILE_MAGIC)
 
 
+def _ensure_distinct_files(input_path, output_path, message):
+    input_path = Path(input_path)
+    output_path = Path(output_path)
+
+    if input_path.resolve() == output_path.resolve():
+        raise ValueError(message)
+
+    if input_path.exists() and output_path.exists():
+        try:
+            same_file = input_path.samefile(output_path)
+        except OSError:
+            same_file = False
+        if same_file:
+            raise ValueError(message)
+
+
 def encrypt_file(input_path, encrypted_path, key):
     input_path = Path(input_path)
     encrypted_path = Path(encrypted_path)
@@ -20,8 +36,11 @@ def encrypt_file(input_path, encrypted_path, key):
     if not input_path.is_file():
         raise FileNotFoundError(f"Input file not found: {input_path}")
 
-    if input_path.resolve() == encrypted_path.resolve():
-        raise ValueError("Input and encrypted file must be different.")
+    _ensure_distinct_files(
+        input_path,
+        encrypted_path,
+        "Input and encrypted file must be different."
+    )
 
     plaintext = input_path.read_bytes()
 
@@ -66,10 +85,11 @@ def decrypt_file(encrypted_path, output_path, key):
             f"Encrypted file not found: {encrypted_path}"
         )
 
-    if encrypted_path.resolve() == output_path.resolve():
-        raise ValueError(
-            "Encrypted and decrypted file must be different."
-        )
+    _ensure_distinct_files(
+        encrypted_path,
+        output_path,
+        "Encrypted and decrypted file must be different."
+    )
 
     encrypted_content = encrypted_path.read_bytes()
 
