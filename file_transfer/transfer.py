@@ -5,6 +5,27 @@ from encryption.file_encryption import encrypt_file, decrypt_file
 from file_transfer.integrity import verify_file_integrity
 
 
+def _validate_transfer_paths(source_path, encrypted_path, decrypted_path):
+    paths = {
+        "source": Path(source_path).resolve(),
+        "encrypted": Path(encrypted_path).resolve(),
+        "decrypted": Path(decrypted_path).resolve()
+    }
+
+    if len(set(paths.values())) != len(paths):
+        duplicates = []
+        names = list(paths)
+        for index, first in enumerate(names):
+            for second in names[index + 1:]:
+                if paths[first] == paths[second]:
+                    duplicates.append(f"{first} and {second}")
+
+        raise ValueError(
+            "Source, encrypted, and decrypted paths must be different: "
+            + ", ".join(duplicates)
+        )
+
+
 def transfer_file(
     source_path,
     encrypted_path,
@@ -18,6 +39,12 @@ def transfer_file(
         raise FileNotFoundError(
             f"Source file not found: {source_path}"
         )
+
+    _validate_transfer_paths(
+        source_path,
+        encrypted_path,
+        decrypted_path
+    )
 
     result = {
         "success": False,

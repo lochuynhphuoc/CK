@@ -4,6 +4,9 @@ from qiskit_aer import AerSimulator
 
 
 def generate_eve_bases(num_bits, seed=None):
+    if num_bits < 0:
+        raise ValueError("Number of bits cannot be negative.")
+
     rng = np.random.default_rng(seed)
     return rng.choice(["Z", "X"], size=num_bits)
 
@@ -15,11 +18,19 @@ def intercept_resend(circuits, attack_probability=1.0, seed=None):
     if not circuits:
         return [], [], []
 
-    rng = np.random.default_rng(seed)
+    basis_sequence, attack_sequence, simulator_sequence = (
+        np.random.SeedSequence(seed).spawn(3)
+    )
+
+    basis_rng = np.random.default_rng(basis_sequence)
+    attack_rng = np.random.default_rng(attack_sequence)
+    simulator_seed = int(
+        simulator_sequence.generate_state(1, dtype=np.uint32)[0]
+    )
 
     num_bits = len(circuits)
-    eve_bases = generate_eve_bases(num_bits, seed)
-    attack_flags = rng.random(num_bits) < attack_probability
+    eve_bases = basis_rng.choice(["Z", "X"], size=num_bits)
+    attack_flags = attack_rng.random(num_bits) < attack_probability
 
     attacked_indices = np.flatnonzero(attack_flags)
     measured_results = {}
@@ -43,7 +54,7 @@ def intercept_resend(circuits, attack_probability=1.0, seed=None):
             compiled,
             shots=1,
             memory=True,
-            seed_simulator=seed
+            seed_simulator=simulator_seed
         )
 
         result = job.result()
