@@ -125,6 +125,15 @@ def main():
     print(f"Discarded bits         : {NUM_BITS - len(matching_indices)}")
     print(f"Sifted key length      : {len(alice_key)}")
 
+    if not alice_key or not bob_key:
+        print_section("SECURITY DECISION")
+        print("Result: No matching measurement bases; sifted key is empty.")
+        print("Session status: ABORT")
+        print("The session is terminated before QBER estimation.")
+        print("The empty key must be discarded.")
+        print("\\nBB84 simulation completed.")
+        return
+
     # ==================================================
     # 5. QBER ESTIMATION
     # ==================================================
