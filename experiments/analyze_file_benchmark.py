@@ -169,6 +169,8 @@ def build_summary(df, output_dir):
         .reset_index()
     )
     by_type_size = by_type_size.sort_values(["file_type", "size_label"])
+    by_type_size["n"] = by_type_size["n"].fillna(0).astype(int)
+
     by_type_size.to_csv(
         output_dir / "benchmark_summary_by_type_size.csv",
         index=False, encoding="utf-8-sig"
