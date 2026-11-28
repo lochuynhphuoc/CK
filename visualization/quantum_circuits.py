@@ -5,7 +5,10 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 from qiskit_aer import AerSimulator
 
-from attack.eve import build_eve_measurement_circuit
+from attack.eve import (
+    build_eve_measurement_circuit,
+    build_eve_resend_circuit,
+)
 from bb84.alice import prepare_qubit
 from bb84.bob import measure_qubit
 
@@ -26,18 +29,20 @@ def export_quantum_circuits(output_dir="results/quantum_circuits"):
 
     alice_circuit = prepare_qubit(1, "X", index=0)
     bob_circuit = measure_qubit(alice_circuit, "X")
-    eve_circuit = build_eve_measurement_circuit(alice_circuit, "Z")
+    eve_measurement = build_eve_measurement_circuit(alice_circuit, "Z")
+    eve_resend = build_eve_resend_circuit(1, "Z")
 
     simulator = AerSimulator()
     circuit_specs = [
         ("alice_prepare_x.png", alice_circuit),
         ("bob_measure_x.png", bob_circuit),
-        ("eve_intercept_z.png", eve_circuit),
+        ("eve_intercept_z.png", eve_measurement),
+        ("eve_resend_z.png", eve_resend),
     ]
 
     rows = []
     for filename, circuit in circuit_specs:
-        path = export_circuit(circuit, output_dir / filename)
+        export_circuit(circuit, output_dir / filename)
         rows.append({
             "figure": filename,
             "circuit_name": circuit.name or "circuit",
