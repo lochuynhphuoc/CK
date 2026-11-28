@@ -28,3 +28,13 @@ jobs:
 
       - name: Run test suite
         run: python -m pytest -v
+
+      - name: Export Qiskit circuit diagrams
+        run: python -m visualization.quantum_circuits
+
+      - name: Upload circuit diagrams
+        uses: actions/upload-artifact@v4
+        with:
+          name: qiskit-bb84-circuit-diagrams
+          path: results/quantum_circuits/
+          if-no-files-found: error
