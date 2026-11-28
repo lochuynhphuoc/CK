@@ -262,6 +262,8 @@ Các tệp kết quả QBER quan trọng:
 
 Dữ liệu benchmark được tự tạo bằng chương trình `generate_test_data.py` và lưu trong thư mục `data/benchmark/`.
 
+Để giữ repository và gói source code gọn nhẹ, các tệp dữ liệu nhị phân benchmark được tạo sinh không được lưu kèm trong repository. Sau khi clone source code, cần chạy `python generate_test_data.py` để tạo lại 35 tệp benchmark và cập nhật `data/benchmark/manifest.csv` trước khi chạy benchmark. Chương trình tạo dữ liệu có sử dụng byte ngẫu nhiên cho các định dạng nhị phân, vì vậy mã SHA-256 của dữ liệu được tạo lại có thể khác manifest của lần thực nghiệm trước. Việc tạo lại dữ liệu không làm thay đổi số lượng định dạng hoặc kích thước tệp được khảo sát.
+
 Bộ dữ liệu gồm 7 nhóm định dạng:
 
 - `.txt`
