@@ -6,6 +6,7 @@ on:
       - main
       - feature/**
       - hardening/**
+      - experiment/**
   pull_request:
 
 jobs:
