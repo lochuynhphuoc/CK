@@ -319,7 +319,43 @@ Một số tệp kết quả quan trọng:
 
 Các kết quả benchmark cần được phân tích riêng với thực nghiệm QBER. QBER bằng 0% trong benchmark không chứng minh hệ thống chống được tấn công nghe lén, vì benchmark file được thực hiện trong kịch bản không có tấn công Eve.
 
-## 10. Kiểm thử tự động
+## 10. Thực nghiệm trực quan hóa mạch lượng tử Qiskit
+
+Nhánh `experiment/qiskit-aer-enhancement` bổ sung chức năng xuất sơ đồ mạch trực tiếp từ các đối tượng `QuantumCircuit` được sử dụng trong source code. Hình không được vẽ thủ công.
+
+Cài đặt các phụ thuộc đã khai báo:
+
+```powershell
+python -m pip install -r requirements.txt
+```
+
+Xuất các sơ đồ:
+
+```powershell
+python -m visualization.quantum_circuits
+```
+
+Các tệp được tạo trong `results/quantum_circuits/`:
+
+- `alice_prepare_x.png`: Alice chuẩn bị trạng thái bit 1 trên cơ sở X.
+- `bob_measure_x.png`: Bob đo trên cơ sở X, thể hiện cổng H trước phép đo.
+- `eve_intercept_z.png`: Eve đo qubit bị chặn trên cơ sở Z.
+- `eve_resend_z.png`: Mạch chuẩn bị qubit mới để gửi lại theo kết quả đo của Eve.
+- `circuit_metadata.csv`: Tên mạch, số qubit, số bit cổ điển, các phép toán và backend mô phỏng.
+
+Mạch Eve được thể hiện thành hai giai đoạn riêng: đo qubit nhận được và chuẩn bị qubit gửi lại. Đây là cách phản ánh đúng ranh giới giữa phép đo và việc tạo trạng thái mới trong source hiện tại.
+
+Chạy riêng bộ kiểm thử mới:
+
+```powershell
+python -m pytest tests/test_quantum_circuits.py -v
+```
+
+CI trên nhánh thử nghiệm cũng xuất sơ đồ và lưu chúng thành artifact của GitHub Actions sau khi kiểm thử hoàn tất.
+
+---
+
+## 11. Kiểm thử tự động
 
 Dự án sử dụng `pytest` để kiểm tra hoạt động của các thành phần quan trọng.
 
@@ -363,7 +399,7 @@ Repository:
 
 https://github.com/lochuynhphuoc/CK
 
-## 11. Giới hạn và lưu ý bảo mật
+## 12. Giới hạn và lưu ý bảo mật
 
 Dự án có một số giới hạn cần được xem xét khi đánh giá kết quả:
 
@@ -379,7 +415,7 @@ Dự án có một số giới hạn cần được xem xét khi đánh giá k�
 
 Các giới hạn trên cho thấy kết quả của đề tài có ý nghĩa minh họa và đánh giá trong phạm vi mô phỏng, không thay thế việc đánh giá an toàn của một hệ thống QKD triển khai thực tế.
 
-## 12. Tài liệu tham khảo và nguồn dữ liệu
+## 13. Tài liệu tham khảo và nguồn dữ liệu
 
 ### 12.1. Nguồn dữ liệu
 
@@ -407,7 +443,7 @@ https://github.com/lochuynhphuoc/CK
 
 Các tài liệu về giao thức BB84, thuật toán AES, chế độ GCM, Qiskit và các thư viện được sử dụng được liệt kê trong danh mục tài liệu tham khảo của báo cáo đồ án.
 
-## 13. Tiến độ thực hiện
+## 14. Tiến độ thực hiện
 
 ### 13.1. Các chức năng đã triển khai
 
