@@ -1,6 +1,21 @@
 import numpy as np
 
 
+def _validated_bits(values, name):
+    try:
+        bits = np.asarray(values)
+    except (TypeError, ValueError) as exc:
+        raise ValueError(f"{name} must be a one-dimensional binary sequence.") from exc
+
+    if bits.ndim != 1:
+        raise ValueError(f"{name} must be a one-dimensional binary sequence.")
+
+    if not np.all(np.isin(bits, [0, 1])):
+        raise ValueError(f"{name} must contain only 0 and 1.")
+
+    return bits.astype(np.uint8, copy=True)
+
+
 def _parity(bits):
     return int(np.sum(bits) % 2)
 
@@ -8,32 +23,26 @@ def _parity(bits):
 def _reconcile_block(alice_key, bob_key, indices):
     alice_parity = _parity(alice_key[indices])
     bob_parity = _parity(bob_key[indices])
-
     disclosed_bits = 1
 
     if alice_parity == bob_parity:
         return False, disclosed_bits
 
     left = indices.copy()
-    right = []
 
     while len(left) > 1:
         middle = len(left) // 2
         left_half = left[:middle]
-
         alice_parity = _parity(alice_key[left_half])
         bob_parity = _parity(bob_key[left_half])
-
         disclosed_bits += 1
 
         if alice_parity != bob_parity:
             left = left_half
         else:
-            right = left[middle:]
-            left = right
+            left = left[middle:]
 
     bob_key[left[0]] ^= 1
-
     return True, disclosed_bits
 
 
@@ -44,50 +53,35 @@ def information_reconciliation(
     block_sizes=(8, 16, 32, 64),
     passes=4
 ):
-    if len(alice_key) != len(bob_key):
+    alice = _validated_bits(alice_key, "Alice key")
+    bob = _validated_bits(bob_key, "Bob key")
+
+    if len(alice) != len(bob):
         raise ValueError("Alice and Bob keys must have the same length.")
 
-    if not alice_key:
+    if len(alice) == 0:
         raise ValueError("Input keys must not be empty.")
 
     if passes < 1:
         raise ValueError("Passes must be at least 1.")
 
-    if any(size < 2 for size in block_sizes):
+    if not block_sizes or any(size < 2 for size in block_sizes):
         raise ValueError("Block sizes must be at least 2.")
-
-    alice = np.asarray(alice_key, dtype=np.uint8).copy()
-    bob = np.asarray(bob_key, dtype=np.uint8).copy()
-
-    if not np.all(np.isin(alice, [0, 1])):
-        raise ValueError("Alice key must contain only 0 and 1.")
-
-    if not np.all(np.isin(bob, [0, 1])):
-        raise ValueError("Bob key must contain only 0 and 1.")
 
     rng = np.random.default_rng(seed)
     disclosed_bits = 0
     corrected_errors = 0
 
     for pass_index in range(passes):
-        block_size = block_sizes[
-            min(pass_index, len(block_sizes) - 1)
-        ]
-
+        block_size = block_sizes[min(pass_index, len(block_sizes) - 1)]
         permutation = rng.permutation(len(alice))
 
         for start in range(0, len(alice), block_size):
             indices = permutation[start:start + block_size]
-
             if len(indices) < 2:
                 continue
 
-            corrected, disclosed = _reconcile_block(
-                alice,
-                bob,
-                indices
-            )
-
+            corrected, disclosed = _reconcile_block(alice, bob, indices)
             disclosed_bits += disclosed
             corrected_errors += int(corrected)
 
@@ -109,23 +103,18 @@ def toeplitz_privacy_amplification(
     output_length=256,
     seed=None
 ):
+    input_bits = _validated_bits(key, "Key")
+
     if output_length < 1:
         raise ValueError("Output length must be positive.")
 
-    if len(key) < output_length:
+    if len(input_bits) < output_length:
         raise ValueError(
             "Input key is too short for the requested output length."
         )
 
-    input_bits = np.asarray(key, dtype=np.uint8)
-
-    if not np.all(np.isin(input_bits, [0, 1])):
-        raise ValueError("Key must contain only 0 and 1.")
-
     input_length = len(input_bits)
-
     rng = np.random.default_rng(seed)
-
     toeplitz_seed = rng.integers(
         0,
         2,
@@ -135,16 +124,9 @@ def toeplitz_privacy_amplification(
 
     row_indices = np.arange(output_length)[:, None]
     column_indices = np.arange(input_length)[None, :]
-
-    matrix_indices = (
-        row_indices - column_indices + input_length - 1
-    )
-
+    matrix_indices = row_indices - column_indices + input_length - 1
     toeplitz_matrix = toeplitz_seed[matrix_indices]
-
-    output_key = (
-        toeplitz_matrix @ input_bits
-    ) % 2
+    output_key = (toeplitz_matrix @ input_bits) % 2
 
     return {
         "key": output_key.astype(np.uint8).tolist(),
@@ -178,7 +160,6 @@ def process_key(
         output_length=output_length,
         seed=None if seed is None else seed + 1
     )
-
     bob_amplification = toeplitz_privacy_amplification(
         reconciliation["bob_key"],
         output_length=output_length,
@@ -187,7 +168,6 @@ def process_key(
 
     alice_final_key = amplification["key"]
     bob_final_key = bob_amplification["key"]
-
     keys_match = alice_final_key == bob_final_key
 
     return {

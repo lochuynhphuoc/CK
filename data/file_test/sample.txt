@@ -1,0 +1,3 @@
+BB84 + AES-256-GCM file transfer test.
+Alice encrypts this file and Bob decrypts it.
+Ki?m tra truy?n file ti?ng Vi?t th?nh c?ng.
