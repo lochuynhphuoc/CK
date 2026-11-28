@@ -11,6 +11,37 @@ def generate_eve_bases(num_bits, seed=None):
     return rng.choice(["Z", "X"], size=num_bits)
 
 
+def build_eve_measurement_circuit(circuit, basis):
+    if basis not in ("Z", "X"):
+        raise ValueError(f"Invalid basis: {basis}")
+
+    measured_circuit = circuit.copy()
+    measured_circuit.name = f"eve_measure_{basis}"
+
+    if basis == "X":
+        measured_circuit.h(0)
+
+    measured_circuit.measure(0, 0)
+    return measured_circuit
+
+
+def build_eve_resend_circuit(measured_bit, basis):
+    if int(measured_bit) not in (0, 1):
+        raise ValueError("Measured bit must be 0 or 1.")
+    if basis not in ("Z", "X"):
+        raise ValueError(f"Invalid basis: {basis}")
+
+    circuit = QuantumCircuit(1, 1)
+    circuit.name = f"eve_resend_{basis}_{int(measured_bit)}"
+
+    if int(measured_bit) == 1:
+        circuit.x(0)
+    if basis == "X":
+        circuit.h(0)
+
+    return circuit
+
+
 def intercept_resend(circuits, attack_probability=1.0, seed=None):
     if not 0.0 <= attack_probability <= 1.0:
         raise ValueError("Attack probability must be between 0 and 1.")
@@ -36,16 +67,10 @@ def intercept_resend(circuits, attack_probability=1.0, seed=None):
     measured_results = {}
 
     if len(attacked_indices) > 0:
-        measurement_circuits = []
-
-        for index in attacked_indices:
-            circuit = circuits[index].copy()
-
-            if eve_bases[index] == "X":
-                circuit.h(0)
-
-            circuit.measure(0, 0)
-            measurement_circuits.append(circuit)
+        measurement_circuits = [
+            build_eve_measurement_circuit(circuits[index], eve_bases[index])
+            for index in attacked_indices
+        ]
 
         simulator = AerSimulator()
         compiled = transpile(measurement_circuits, simulator)
@@ -72,15 +97,11 @@ def intercept_resend(circuits, attack_probability=1.0, seed=None):
             output_circuits.append(circuit.copy())
             continue
 
-        measured_bit = measured_results[index]
-        new_circuit = QuantumCircuit(1, 1)
-
-        if measured_bit == 1:
-            new_circuit.x(0)
-
-        if eve_bases[index] == "X":
-            new_circuit.h(0)
-
-        output_circuits.append(new_circuit)
+        output_circuits.append(
+            build_eve_resend_circuit(
+                measured_results[index],
+                eve_bases[index]
+            )
+        )
 
     return output_circuits, eve_bases, attack_flags
